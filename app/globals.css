@@ -11,7 +11,9 @@
 }
 
 @layer base {
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
 
   body {
     background: #faf7f2;
@@ -21,10 +23,23 @@
   }
 
   /* Custom scrollbar */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #d4ccbc; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #b5a98e; }
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d4ccbc;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #b5a98e;
+  }
 }
 
 @layer components {
@@ -38,7 +53,10 @@
     min-height: 100%;
   }
 
-  .tiptap-editor .ProseMirror p { margin-bottom: 1em; }
+  .tiptap-editor .ProseMirror p {
+    margin-bottom: 1em;
+  }
+
   .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     color: #d4ccbc;
@@ -70,6 +88,7 @@
     text-align: center;
     margin: 2em 0;
   }
+
   .tiptap-editor .ProseMirror hr::after {
     content: '* * *';
     color: #b5a98e;
@@ -87,5 +106,56 @@
     margin-right: 8px;
     margin-top: 6px;
     color: #8b3a2a;
+  }
+
+  /* Additional TipTap prose styles */
+  .tiptap-prose h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin: 1.5em 0 0.5em;
+  }
+
+  .tiptap-prose h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 1.5em 0 0.5em;
+  }
+
+  .tiptap-prose p {
+    margin-bottom: 1em;
+    font-family: 'Lora', serif;
+    font-size: 1rem;
+    line-height: 1.9;
+  }
+
+  .tiptap-prose blockquote {
+    border-left: 3px solid #c9a84c;
+    padding-left: 1rem;
+    margin: 1.5em 0;
+    font-style: italic;
+    color: #5f5038;
+  }
+
+  .tiptap-prose hr {
+    border: none;
+    text-align: center;
+    margin: 2em 0;
+  }
+
+  .tiptap-prose hr::after {
+    content: '* * *';
+    color: #b5a98e;
+    letter-spacing: 0.5em;
+    font-size: 0.85rem;
+  }
+
+  .tiptap-prose strong {
+    font-weight: 700;
+  }
+
+  .tiptap-prose em {
+    font-style: italic;
   }
 }
