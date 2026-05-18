@@ -19,7 +19,8 @@ export function CoverDesigner({ book, onBookChange }: CoverDesignerProps) {
     const updated = { ...book, ...patch }
     onBookChange(updated)
     setSaving(true)
-    await supabase.from('books').update(patch).eq('id', book.id)
+    const { error } = await supabase.from('books').update(patch).eq('id', book.id)
+    if (error) console.error('Book update error:', error)
     setSaving(false)
   }
 
@@ -27,36 +28,63 @@ export function CoverDesigner({ book, onBookChange }: CoverDesignerProps) {
     updateBook({ cover_theme: COVER_THEMES[name] })
   }
 
+  // Active theme detect karne ka sahi tarika
+  function isActiveTheme(themeName: CoverThemeName): boolean {
+    const currentBg = book.cover_theme?.bg
+    return currentBg === COVER_THEMES[themeName].bg
+  }
+
   return (
     <aside className="w-72 bg-cream border-r border-gold-200 flex flex-col overflow-y-auto flex-shrink-0">
       <div className="px-5 py-4 border-b border-gold-200">
         <h2 className="font-serif text-lg text-ink-900">Cover Design</h2>
-        <p className="text-xs text-ink-400 mt-0.5">{saving ? '⟳ Saving…' : 'Changes save automatically'}</p>
+        <p className="text-xs text-ink-400 mt-0.5">
+          {saving ? '⟳ Saving…' : '✓ Changes save automatically'}
+        </p>
       </div>
 
       <div className="p-5 space-y-6">
         <Field label="Cover Title">
-          <input value={book.title} onChange={e => updateBook({ title: e.target.value })}
-            className={inputCls} placeholder="Your Book Title" />
+          <input
+            value={book.title}
+            onChange={e => updateBook({ title: e.target.value })}
+            className={inputCls}
+            placeholder="Your Book Title"
+          />
         </Field>
 
         <Field label="Cover Subtitle">
-          <input value={book.cover_subtitle ?? ''} onChange={e => updateBook({ cover_subtitle: e.target.value })}
-            className={inputCls} placeholder="A Novel" />
+          <input
+            value={book.cover_subtitle ?? ''}
+            onChange={e => updateBook({ cover_subtitle: e.target.value })}
+            className={inputCls}
+            placeholder="A Novel"
+          />
         </Field>
 
         <Field label="Author Name">
-          <input value={book.author_name} onChange={e => updateBook({ author_name: e.target.value })}
-            className={inputCls} placeholder="Your Name" />
+          <input
+            value={book.author_name}
+            onChange={e => updateBook({ author_name: e.target.value })}
+            className={inputCls}
+            placeholder="Your Name"
+          />
         </Field>
 
         <Field label="Theme">
           <div className="grid grid-cols-2 gap-2">
             {(Object.entries(COVER_THEMES) as [CoverThemeName, CoverTheme][]).map(([name, theme]) => (
-              <button key={name} onClick={() => setTheme(name)}
-                className={cn('py-2.5 px-3 rounded-lg text-xs font-medium capitalize border-2 transition-all',
-                  book.cover_theme?.name === name ? 'border-gold scale-[1.02] shadow-md' : 'border-transparent hover:scale-[1.01]')}
-                style={{ background: theme.bg, color: theme.text }}>
+              <button
+                key={name}
+                onClick={() => setTheme(name)}
+                className={cn(
+                  'py-2.5 px-3 rounded-lg text-xs font-medium capitalize border-2 transition-all',
+                  isActiveTheme(name)
+                    ? 'border-gold scale-[1.02] shadow-md'
+                    : 'border-transparent hover:scale-[1.01] hover:border-gold-400'
+                )}
+                style={{ background: theme.bg, color: theme.text }}
+              >
                 {name.replace('-', ' ')}
               </button>
             ))}
@@ -66,9 +94,16 @@ export function CoverDesigner({ book, onBookChange }: CoverDesignerProps) {
         <Field label="Ornament">
           <div className="flex flex-wrap gap-2">
             {COVER_ORNAMENTS.map(o => (
-              <button key={o} onClick={() => updateBook({ cover_ornament: o })}
-                className={cn('w-10 h-10 rounded-lg border text-xl flex items-center justify-center transition-all',
-                  book.cover_ornament === o ? 'border-gold bg-gold-50 scale-110 shadow' : 'border-gold-200 hover:border-gold bg-paper')}>
+              <button
+                key={o}
+                onClick={() => updateBook({ cover_ornament: o })}
+                className={cn(
+                  'w-10 h-10 rounded-lg border text-xl flex items-center justify-center transition-all',
+                  book.cover_ornament === o
+                    ? 'border-gold bg-gold-50 scale-110 shadow'
+                    : 'border-gold-200 hover:border-gold bg-paper'
+                )}
+              >
                 {o}
               </button>
             ))}

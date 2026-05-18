@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
@@ -21,7 +22,13 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signUp({
+    if (password.length < 8) {
+      setError('Password kam se kam 8 characters ka hona chahiye.')
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -31,10 +38,37 @@ export default function SignupPage() {
     })
 
     if (error) {
-      setError(error.message)
+      if (error.message.includes('already registered')) {
+        setError('Yeh email already registered hai. Login karein.')
+      } else {
+        setError(error.message)
+      }
+      setLoading(false)
+    } else if (data?.user?.identities?.length === 0) {
+      // User exists but email not confirmed
+      setError('Yeh email already registered hai. Login karein ya email confirm karein.')
       setLoading(false)
     } else {
       setSuccess(true)
+    }
+  }
+
+  async function handleGoogleSignup() {
+    setGoogleLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    })
+    if (error) {
+      setError('Google signup mein error: ' + error.message)
+      setGoogleLoading(false)
     }
   }
 
@@ -43,10 +77,14 @@ export default function SignupPage() {
       <main className="min-h-screen bg-paper flex flex-col items-center justify-center px-4">
         <div className="bg-white border border-gold-200 rounded-2xl p-8 w-full max-w-sm shadow-page text-center">
           <div className="text-4xl mb-4">✦</div>
-          <h2 className="font-serif text-2xl text-ink-900 mb-2">Check your email</h2>
+          <h2 className="font-serif text-2xl text-ink-900 mb-2">Email check karein</h2>
           <p className="text-sm text-ink-400 leading-relaxed">
-            We sent a confirmation link to <strong className="text-ink-700">{email}</strong>.
-            Click it to activate your account and start writing.
+            Humne confirmation link bheja hai{' '}
+            <strong className="text-ink-700">{email}</strong> par.
+            Click karein activate karne ke liye aur likhna shuru karein.
+          </p>
+          <p className="text-xs text-ink-300 mt-3">
+            Spam folder bhi check karein agar email na aaye.
           </p>
           <Link href="/login" className="mt-6 inline-block text-sm text-gold-500 hover:text-gold">
             Back to sign in
@@ -82,7 +120,8 @@ export default function SignupPage() {
               value={fullName}
               onChange={e => setFullName(e.target.value)}
               required
-              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors"
+              disabled={loading}
+              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors disabled:opacity-60"
               placeholder="Arjun Sharma"
             />
           </div>
@@ -96,7 +135,8 @@ export default function SignupPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors"
+              disabled={loading}
+              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors disabled:opacity-60"
               placeholder="you@example.com"
             />
           </div>
@@ -111,19 +151,46 @@ export default function SignupPage() {
               onChange={e => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors"
+              disabled={loading}
+              className="w-full px-3 py-2.5 border border-gold-200 rounded-lg text-sm text-ink-900 bg-paper outline-none focus:border-gold transition-colors disabled:opacity-60"
               placeholder="Min. 8 characters"
             />
           </div>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || googleLoading}
             className="w-full bg-ink-900 text-gold font-medium py-2.5 rounded-lg text-sm hover:bg-ink-700 transition-colors disabled:opacity-60"
           >
             {loading ? 'Creating account…' : 'Create account'}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 border-t border-gold-100" />
+          <span className="text-xs text-ink-300">or</span>
+          <div className="flex-1 border-t border-gold-100" />
+        </div>
+
+        <button
+          onClick={handleGoogleSignup}
+          disabled={loading || googleLoading}
+          className="w-full border border-gold-200 text-ink-600 text-sm font-medium py-2.5 rounded-lg hover:bg-cream transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {googleLoading ? (
+            <span className="text-ink-400">Redirecting…</span>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Continue with Google
+            </>
+          )}
+        </button>
 
         <p className="text-center text-sm text-ink-400 mt-5">
           Already have an account?{' '}

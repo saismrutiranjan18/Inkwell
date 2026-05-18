@@ -7,7 +7,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface UseAutoSaveProps {
   chapter: Chapter | null
-  content: string          // TipTap HTML string
+  content: string   // TipTap HTML
   title: string
   onStatusChange: (status: SaveStatus) => void
 }
@@ -21,13 +21,18 @@ export function useAutoSave({
   const supabase = getSupabaseClient()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedRef = useRef<string>('')
+  const savingRef = useRef(false)
 
   const save = useCallback(async () => {
     if (!chapter) return
-    const key = `${title}::${content}`
-    if (key === lastSavedRef.current) return   // nothing changed
+    if (savingRef.current) return // duplicate save prevent karo
 
+    const key = `${title}::${content}`
+    if (key === lastSavedRef.current) return // kuch change nahi hua
+
+    savingRef.current = true
     onStatusChange('saving')
+
     const plainText = stripHtml(content)
     const wc = wordCount(plainText)
 
@@ -42,6 +47,8 @@ export function useAutoSave({
       })
       .eq('id', chapter.id)
 
+    savingRef.current = false
+
     if (error) {
       console.error('Auto-save error:', error)
       onStatusChange('error')
@@ -52,6 +59,7 @@ export function useAutoSave({
     }
   }, [chapter, content, title, onStatusChange, supabase])
 
+  // Debounced auto-save: 1.5 seconds baad save karo
   useEffect(() => {
     if (!chapter) return
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -61,9 +69,10 @@ export function useAutoSave({
     }
   }, [content, title, chapter, save])
 
-  const forceSave = useCallback(() => {
+  // Force save (e.g. chapter switch se pehle)
+  const forceSave = useCallback(async () => {
     if (timerRef.current) clearTimeout(timerRef.current)
-    save()
+    await save()
   }, [save])
 
   return { forceSave }

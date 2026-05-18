@@ -9,7 +9,9 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return request.cookies.getAll() },
+        getAll() {
+          return request.cookies.getAll()
+        },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
@@ -23,29 +25,38 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — IMPORTANT: do not add logic between createServerClient and getUser
-  const { data: { user } } = await supabase.auth.getUser()
+  // IMPORTANT: createServerClient aur getUser ke beech koi logic mat dalo
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // Protect dashboard and editor routes
+  const pathname = request.nextUrl.pathname
+
+  // Protected routes
   const isProtected =
-    request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/editor') ||
-    request.nextUrl.pathname.startsWith('/cover')
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/editor') ||
+    pathname.startsWith('/cover')
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    // Original URL save karo taaki login ke baad redirect ho sake
+    url.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(url)
   }
 
-  // Redirect logged-in users away from auth pages
+  // Auth pages pe logged-in user ko redirect karo
   const isAuth =
-    request.nextUrl.pathname === '/login' ||
-    request.nextUrl.pathname === '/signup'
+    pathname === '/login' ||
+    pathname === '/signup'
 
   if (isAuth && user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    // Check karo koi redirectTo hai ki nahi
+    const redirectTo = request.nextUrl.searchParams.get('redirectTo')
+    url.pathname = redirectTo ?? '/dashboard'
+    url.searchParams.delete('redirectTo')
     return NextResponse.redirect(url)
   }
 
@@ -54,6 +65,13 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico
+     * - public folder files
+     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
