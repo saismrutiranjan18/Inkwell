@@ -19,20 +19,32 @@ interface AIResult {
 }
 
 const ACTION_LABELS: Record<AIAction, string> = {
-  format: 'Format Chapter',
-  grammar: 'Fix Grammar',
-  title: 'Suggest Title',
+  format:   'Format Chapter',
+  grammar:  'Fix Grammar',
+  title:    'Suggest Title',
   continue: 'Continue Writing',
 }
 
-export function AIToolbar({ chapterText, onApplyContent, saveStatus }: AIToolbarProps) {
-  const [loading, setLoading] = useState<AIAction | null>(null)
-  const [modal, setModal] = useState<AIResult | null>(null)
-  const [error, setError] = useState('')
+const MODAL_TITLES: Record<AIAction, string> = {
+  format:   'Formatted Chapter',
+  grammar:  'Grammar Fixed',
+  title:    'Title Suggestions',
+  continue: 'Story Continuation',
+}
 
+export function AIToolbar({
+  chapterText,
+  onApplyContent,
+  saveStatus,
+}: AIToolbarProps) {
+  const [loading, setLoading] = useState<AIAction | null>(null)
+  const [modal, setModal]     = useState<AIResult | null>(null)
+  const [error, setError]     = useState('')
+
+  // ── Call AI endpoint ──────────────────────────────────────
   async function callAI(action: AIAction) {
     if (!chapterText.trim()) {
-      setError('Pehle kuch likho!')
+      setError('Write something first!')
       setTimeout(() => setError(''), 2500)
       return
     }
@@ -48,7 +60,6 @@ export function AIToolbar({ chapterText, onApplyContent, saveStatus }: AIToolbar
       })
 
       const data = await res.json()
-
       if (!res.ok) throw new Error(data.error ?? 'AI error')
 
       if (action === 'title') {
@@ -65,67 +76,80 @@ export function AIToolbar({ chapterText, onApplyContent, saveStatus }: AIToolbar
     }
   }
 
+  // ── Apply AI-suggested title ──────────────────────────────
   function applyTitle(title: string) {
-    window.dispatchEvent(new CustomEvent('inkwell:apply-title', { detail: title }))
+    window.dispatchEvent(
+      new CustomEvent('inkwell:apply-title', { detail: title })
+    )
     setModal(null)
   }
 
-  const saveLabel = {
-    idle: '',
-    saving: '⟳ Saving…',
-    saved: '✓ Saved',
-    error: '✕ Save failed',
+  // ── Save status pill ──────────────────────────────────────
+  const saveConfig = {
+    idle:   { label: '',            color: '' },
+    saving: { label: '⟳ Saving…',  color: 'text-gold-400' },
+    saved:  { label: '✓ Saved',     color: 'text-green-400' },
+    error:  { label: '✕ Save error',color: 'text-red-400' },
   }[saveStatus]
-
-  const saveColor = {
-    idle: '',
-    saving: 'text-ink-300',
-    saved: 'text-green-500',
-    error: 'text-red-400',
-  }[saveStatus]
-
-  const modalTitle: Record<AIAction, string> = {
-    format: 'Formatted Chapter',
-    grammar: 'Grammar Fixed',
-    title: 'Title Suggestions',
-    continue: 'Story Continuation',
-  }
 
   return (
     <>
-      <div className="bg-ink-900 px-6 py-2.5 flex items-center gap-3 flex-wrap border-t border-ink-800">
-        <span className="text-[11px] font-medium text-gold tracking-widest uppercase">✦ AI</span>
+      {/* ── Toolbar strip ──────────────────────────────────── */}
+      <div className="bg-ink-900 px-5 py-2 flex items-center gap-2 flex-wrap border-t border-ink-800 flex-shrink-0">
 
-        {(['format', 'grammar', 'title', 'continue'] as AIAction[]).map(action => (
+        {/* AI label */}
+        <span className="text-[10px] font-semibold text-gold tracking-[0.15em] uppercase flex-shrink-0">
+          ✦ AI
+        </span>
+
+        {/* Vertical divider */}
+        <div className="w-px h-4 bg-ink-700 flex-shrink-0" />
+
+        {/* Action buttons */}
+        {(Object.keys(ACTION_LABELS) as AIAction[]).map(action => (
           <button
             key={action}
             onClick={() => callAI(action)}
             disabled={!!loading}
-            className="border border-gold-700 text-gold-300 text-xs px-3 py-1 rounded-md hover:border-gold hover:text-gold transition-colors disabled:opacity-40"
+            className="border border-ink-700 hover:border-gold-600 text-gold-400 hover:text-gold text-[11px] px-3 py-1 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
           >
-            {loading === action ? '…' : ACTION_LABELS[action]}
+            {loading === action ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="animate-spin">⟳</span>
+                {ACTION_LABELS[action]}
+              </span>
+            ) : (
+              ACTION_LABELS[action]
+            )}
           </button>
         ))}
 
-        <div className="ml-auto flex items-center gap-4">
-          {error && <span className="text-red-400 text-xs">{error}</span>}
+        {/* Right side: error + save status */}
+        <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+          {error && (
+            <span className="text-red-400 text-[11px]">{error}</span>
+          )}
           {saveStatus !== 'idle' && (
-            <span className={`text-xs ${saveColor}`}>{saveLabel}</span>
+            <span className={`text-[11px] font-medium ${saveConfig.color}`}>
+              {saveConfig.label}
+            </span>
           )}
         </div>
       </div>
 
-      {/* AI Result Modal */}
+      {/* ── AI Result Modal ────────────────────────────────── */}
       {modal && (
         <div className="fixed inset-0 bg-ink-900/60 z-50 flex items-center justify-center p-4">
           <div className="bg-paper border border-gold-200 rounded-2xl p-6 w-full max-w-lg shadow-xl">
+
+            {/* Modal header */}
             <h3 className="font-serif text-xl text-ink-900 mb-1">
-              {modalTitle[modal.action]}
+              {MODAL_TITLES[modal.action]}
             </h3>
             <p className="text-sm text-ink-400 mb-4">
               {modal.action === 'title'
-                ? 'Ek title chunein use karne ke liye.'
-                : 'Neeche dekh ke Apply karein.'}
+                ? 'Click a title to apply it to this chapter.'
+                : 'Review the result below, then apply or dismiss.'}
             </p>
 
             {/* Title suggestions */}
@@ -145,13 +169,16 @@ export function AIToolbar({ chapterText, onApplyContent, saveStatus }: AIToolbar
 
             {/* Text result */}
             {modal.action !== 'title' && modal.result && (
-              <div className="bg-cream rounded-xl p-4 max-h-64 overflow-y-auto text-sm font-body text-ink-700 leading-relaxed mb-4">
+              <div className="bg-cream rounded-xl p-4 max-h-64 overflow-y-auto text-sm font-body text-ink-700 leading-relaxed mb-4 border border-gold-100">
                 {modal.result.split('\n').map((line, i) => (
-                  <p key={i} className={line.trim() ? 'mb-2' : 'mb-1'}>{line}</p>
+                  <p key={i} className={line.trim() ? 'mb-2' : 'mb-1'}>
+                    {line}
+                  </p>
                 ))}
               </div>
             )}
 
+            {/* Modal actions */}
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setModal(null)}
@@ -161,7 +188,10 @@ export function AIToolbar({ chapterText, onApplyContent, saveStatus }: AIToolbar
               </button>
               {modal.action !== 'title' && (
                 <button
-                  onClick={() => { onApplyContent(modal.result); setModal(null) }}
+                  onClick={() => {
+                    onApplyContent(modal.result)
+                    setModal(null)
+                  }}
                   className="px-4 py-2 rounded-lg bg-ink-900 text-gold text-sm font-medium hover:bg-ink-700 transition-colors"
                 >
                   Apply to Chapter

@@ -19,9 +19,13 @@ interface EditorProps {
 export function Editor({ content, onChange, placeholder }: EditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] }, horizontalRule: {} }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        horizontalRule: {},
+      }),
       Placeholder.configure({
-        placeholder: placeholder ?? 'Begin your story here...\n\nLet the words flow freely.',
+        placeholder:
+          placeholder ?? 'Begin your story here…\n\nLet the words flow freely.',
       }),
       CharacterCount,
       Typography,
@@ -29,8 +33,12 @@ export function Editor({ content, onChange, placeholder }: EditorProps) {
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
     content,
-    onUpdate: ({ editor }) => { onChange(editor.getHTML()) },
-    editorProps: { attributes: { class: 'tiptap-prose outline-none min-h-full' } },
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML())
+    },
+    editorProps: {
+      attributes: { class: 'tiptap-prose outline-none min-h-full' },
+    },
     immediatelyRender: false,
   })
 
@@ -48,7 +56,7 @@ export function Editor({ content, onChange, placeholder }: EditorProps) {
     <div className="flex flex-col h-full">
       <EditorToolbar editor={editor} />
       <div className="flex-1 overflow-y-auto">
-        <div className="tiptap-editor max-w-2xl mx-auto px-8 py-6 min-h-full">
+        <div className="tiptap-editor max-w-2xl mx-auto px-10 py-8 min-h-full">
           <EditorContent editor={editor} className="min-h-full" />
         </div>
       </div>
@@ -58,30 +66,145 @@ export function Editor({ content, onChange, placeholder }: EditorProps) {
 
 type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>
 
-function EditorToolbar({ editor }: { editor: TipTapEditor }) {
-  const btn = (label: string, action: () => void, isActive?: boolean, title?: string) => (
-    <button key={label} onClick={action} title={title ?? label}
-      className={cn('px-2.5 py-1 rounded text-sm border transition-colors',
-        isActive ? 'bg-ink-900 text-gold border-ink-900'
-                 : 'border-gold-200 text-ink-600 hover:bg-cream hover:border-gold-300')}>
+// ── Divider between toolbar groups ───────────────────────────
+function Divider() {
+  return <div className="w-px h-4 bg-gold-100 mx-0.5 flex-shrink-0" />
+}
+
+// ── Single toolbar button ─────────────────────────────────────
+function ToolBtn({
+  label,
+  onClick,
+  isActive,
+  title,
+  disabled,
+}: {
+  label: React.ReactNode
+  onClick: () => void
+  isActive?: boolean
+  title?: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title ?? String(label)}
+      disabled={disabled}
+      className={cn(
+        'px-2.5 py-1 rounded text-[12px] border transition-colors flex-shrink-0 disabled:opacity-40',
+        isActive
+          ? 'bg-ink-900 text-gold border-ink-900'
+          : 'border-gold-100 text-ink-500 hover:bg-cream hover:border-gold-200 hover:text-ink-800'
+      )}
+    >
       {label}
     </button>
   )
+}
 
+function EditorToolbar({ editor }: { editor: TipTapEditor }) {
   return (
-    <div className="flex items-center gap-1.5 px-6 py-2 border-b border-gold-100 bg-paper flex-wrap">
-      {btn('B', () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
-      {btn('I', () => editor.chain().focus().toggleItalic().run(), editor.isActive('italic'))}
-      {btn('U', () => editor.chain().focus().toggleUnderline().run(), editor.isActive('underline'))}
-      <div className="w-px h-4 bg-gold-200 mx-1" />
-      {btn('H1', () => editor.chain().focus().toggleHeading({ level: 1 }).run(), editor.isActive('heading', { level: 1 }))}
-      {btn('H2', () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
-      <div className="w-px h-4 bg-gold-200 mx-1" />
-      {btn('" "', () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'), 'Blockquote')}
-      {btn('— Break', () => editor.chain().focus().setHorizontalRule().run(), false, 'Scene Break')}
-      <div className="w-px h-4 bg-gold-200 mx-1" />
-      {btn('↩ Undo', () => editor.chain().focus().undo().run(), false, 'Undo')}
-      {btn('↪ Redo', () => editor.chain().focus().redo().run(), false, 'Redo')}
+    <div className="flex items-center gap-1 px-6 py-2 border-b border-gold-100 bg-paper flex-wrap flex-shrink-0">
+
+      {/* ── Text style ─────────── */}
+      <ToolBtn
+        label={<b>B</b>}
+        title="Bold"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        isActive={editor.isActive('bold')}
+      />
+      <ToolBtn
+        label={<em>I</em>}
+        title="Italic"
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        isActive={editor.isActive('italic')}
+      />
+      <ToolBtn
+        label={<u>U</u>}
+        title="Underline"
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        isActive={editor.isActive('underline')}
+      />
+
+      <Divider />
+
+      {/* ── Headings ───────────── */}
+      <ToolBtn
+        label="H1"
+        title="Heading 1"
+        onClick={() =>
+          editor.chain().focus().toggleHeading({ level: 1 }).run()
+        }
+        isActive={editor.isActive('heading', { level: 1 })}
+      />
+      <ToolBtn
+        label="H2"
+        title="Heading 2"
+        onClick={() =>
+          editor.chain().focus().toggleHeading({ level: 2 }).run()
+        }
+        isActive={editor.isActive('heading', { level: 2 })}
+      />
+
+      <Divider />
+
+      {/* ── Block elements ─────── */}
+      <ToolBtn
+        label={<span className="tracking-tight">" "</span>}
+        title="Blockquote"
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        isActive={editor.isActive('blockquote')}
+      />
+      <ToolBtn
+        label="— Break"
+        title="Scene break (* * *)"
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+      />
+
+      <Divider />
+
+      {/* ── Alignment ──────────── */}
+      <ToolBtn
+        label="≡L"
+        title="Align left"
+        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+        isActive={editor.isActive({ textAlign: 'left' })}
+      />
+      <ToolBtn
+        label="≡C"
+        title="Align center"
+        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+        isActive={editor.isActive({ textAlign: 'center' })}
+      />
+      <ToolBtn
+        label="≡R"
+        title="Align right"
+        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+        isActive={editor.isActive({ textAlign: 'right' })}
+      />
+
+      <Divider />
+
+      {/* ── History ────────────── */}
+      <ToolBtn
+        label="↩ Undo"
+        title="Undo"
+        onClick={() => editor.chain().focus().undo().run()}
+        disabled={!editor.can().undo()}
+      />
+      <ToolBtn
+        label="↪ Redo"
+        title="Redo"
+        onClick={() => editor.chain().focus().redo().run()}
+        disabled={!editor.can().redo()}
+      />
+
+      {/* ── Word count ─────────── */}
+      <div className="ml-auto flex-shrink-0">
+        <span className="text-[11px] text-ink-300 tabular-nums">
+          {editor.storage.characterCount?.words() ?? 0} words
+        </span>
+      </div>
     </div>
   )
 }

@@ -30,12 +30,15 @@ export default function EditorPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('write')
 
+  // ── Load book + chapters ──────────────────────────────────
   useEffect(() => {
     async function load() {
       setLoading(true)
 
       if (bookId === 'new') {
-        const { data: { user } } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
         if (!user) { router.push('/login'); return }
 
         const { data: newBook, error: bookError } = await supabase
@@ -49,11 +52,7 @@ export default function EditorPage() {
           .select()
           .single()
 
-        if (bookError || !newBook) {
-          console.error('Book creation failed:', bookError)
-          router.push('/dashboard')
-          return
-        }
+        if (bookError || !newBook) { router.push('/dashboard'); return }
 
         const { data: firstChapter, error: chapterError } = await supabase
           .from('chapters')
@@ -68,37 +67,32 @@ export default function EditorPage() {
           .select()
           .single()
 
-        if (chapterError || !firstChapter) {
-          console.error('Chapter creation failed:', chapterError)
-          router.push('/dashboard')
-          return
-        }
+        if (chapterError || !firstChapter) { router.push('/dashboard'); return }
 
-        // Pehle state set karo, phir redirect
         setBook(newBook as Book)
         setChapters([firstChapter as Chapter])
         setActiveChapter(firstChapter as Chapter)
         setChapterTitle(firstChapter.title)
         setEditorContent(firstChapter.content ?? '')
         setLoading(false)
-
-        // URL update karo without re-render
         router.replace(`/editor/${newBook.id}`)
         return
       }
 
-      // Existing book load karo
-      const [{ data: bookData, error: bookErr }, { data: chapterData, error: chapterErr }] =
-        await Promise.all([
-          supabase.from('books').select('*').eq('id', bookId).single(),
-          supabase.from('chapters').select('*').eq('book_id', bookId).order('order_index'),
-        ])
+      // Existing book
+      const [
+        { data: bookData, error: bookErr },
+        { data: chapterData },
+      ] = await Promise.all([
+        supabase.from('books').select('*').eq('id', bookId).single(),
+        supabase
+          .from('chapters')
+          .select('*')
+          .eq('book_id', bookId)
+          .order('order_index'),
+      ])
 
-      if (bookErr || !bookData) {
-        console.error('Book not found:', bookErr)
-        router.push('/dashboard')
-        return
-      }
+      if (bookErr || !bookData) { router.push('/dashboard'); return }
 
       setBook(bookData as Book)
       const chs = (chapterData as Chapter[]) ?? []
@@ -115,17 +109,23 @@ export default function EditorPage() {
     load()
   }, [bookId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // AI title apply karne ka event listener
+  // ── AI title apply event ──────────────────────────────────
   useEffect(() => {
     function onApplyTitle(e: Event) {
       const title = (e as CustomEvent<string>).detail
       setChapterTitle(title)
-      setChapters(prev => prev.map(c => c.id === activeChapter?.id ? { ...c, title } : c))
+      setChapters(prev =>
+        prev.map(c =>
+          c.id === activeChapter?.id ? { ...c, title } : c
+        )
+      )
     }
     window.addEventListener('inkwell:apply-title', onApplyTitle)
-    return () => window.removeEventListener('inkwell:apply-title', onApplyTitle)
+    return () =>
+      window.removeEventListener('inkwell:apply-title', onApplyTitle)
   }, [activeChapter?.id])
 
+  // ── Auto-save hook ────────────────────────────────────────
   const { forceSave } = useAutoSave({
     chapter: activeChapter,
     content: editorContent,
@@ -133,127 +133,183 @@ export default function EditorPage() {
     onStatusChange: setSaveStatus,
   })
 
-  const handleChapterSelect = useCallback(async (chapter: Chapter) => {
-    await forceSave()
-    setActiveChapter(chapter)
-    setChapterTitle(chapter.title)
-    setEditorContent(chapter.content ?? '')
-  }, [forceSave])
+  // ── Chapter select (force-save current first) ─────────────
+  const handleChapterSelect = useCallback(
+    async (chapter: Chapter) => {
+      await forceSave()
+      setActiveChapter(chapter)
+      setChapterTitle(chapter.title)
+      setEditorContent(chapter.content ?? '')
+    },
+    [forceSave]
+  )
 
-  async function saveBookMeta(field: 'title' | 'author_name', value: string) {
+  // ── Save book-level fields (title / author_name) ──────────
+  async function saveBookField(
+    field: 'title' | 'author_name',
+    value: string
+  ) {
     if (!book) return
-    setBook(prev => prev ? { ...prev, [field]: value } : prev)
-    const { error } = await supabase.from('books').update({ [field]: value }).eq('id', book.id)
-    if (error) console.error('Book meta save error:', error)
+    setBook(prev => (prev ? { ...prev, [field]: value } : prev))
+    await supabase
+      .from('books')
+      .update({ [field]: value })
+      .eq('id', book.id)
   }
 
+  // ── Apply AI content to editor ────────────────────────────
   function handleApplyContent(text: string) {
-    // Plain text ko TipTap HTML mein convert karo
     const html = text
       .split('\n\n')
-      .map(p => p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '')
+      .map(p => (p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : ''))
       .filter(Boolean)
       .join('')
     setEditorContent(html || '<p></p>')
   }
 
+  // ── Loading state ─────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-paper flex items-center justify-center">
         <div className="text-center">
-          <div className="font-serif text-4xl text-gold mb-4 animate-pulse">✦</div>
+          <div className="font-serif text-4xl text-gold mb-4 animate-pulse">
+            ✦
+          </div>
           <p className="text-ink-400 text-sm">Loading your book…</p>
         </div>
       </div>
     )
   }
 
-  if (!book) {
-    return (
-      <div className="min-h-screen bg-paper flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-ink-400">Book nahi mili. Dashboard pe wapas jaayein.</p>
-          <Link href="/dashboard" className="mt-4 inline-block bg-ink-900 text-gold px-4 py-2 rounded-lg text-sm">
-            Dashboard
-          </Link>
-        </div>
-      </div>
-    )
-  }
+  if (!book) return null
+
+  const totalWords = chapters.reduce(
+    (s, c) => s + (c.word_count ?? 0),
+    0
+  )
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-paper">
-      {/* Top Navigation */}
-      <nav className="bg-ink-900 px-6 flex items-center gap-4 flex-shrink-0" style={{ height: '52px' }}>
-        <Link href="/dashboard" className="text-gold-500 hover:text-gold text-sm mr-2 flex-shrink-0">
+
+      {/* ── Top nav ──────────────────────────────────────── */}
+      <nav
+        className="bg-ink-900 px-5 flex items-center gap-3 flex-shrink-0"
+        style={{ height: '52px' }}
+      >
+        <Link
+          href="/dashboard"
+          className="text-gold-500 hover:text-gold text-sm flex-shrink-0 transition-colors"
+        >
           ← Dashboard
         </Link>
+
+        <div className="w-px h-4 bg-gold-800 mx-1 flex-shrink-0" />
+
+        {/* Editable book title */}
         <input
           value={book.title ?? ''}
-          onChange={e => saveBookMeta('title', e.target.value)}
-          className="bg-transparent text-gold font-serif text-lg outline-none border-b border-transparent focus:border-gold-700 min-w-0 flex-1 max-w-xs truncate"
+          onChange={e => saveBookField('title', e.target.value)}
+          className="bg-transparent text-gold font-serif text-base outline-none border-b border-transparent focus:border-gold-700 min-w-0 flex-1 max-w-xs transition-colors placeholder:text-gold-800 truncate"
           placeholder="Book Title"
         />
+
+        {/* Write / Preview tabs */}
         <div className="flex items-center gap-1 ml-auto">
           {(['write', 'preview'] as Tab[]).map(tab => (
             <button
               key={tab}
-              onClick={() => { forceSave(); setActiveTab(tab) }}
-              className={`px-3 py-1 rounded-md text-sm capitalize ${activeTab === tab ? 'bg-gold-800/30 text-gold' : 'text-gold-500 hover:text-gold'}`}
+              onClick={() => {
+                forceSave()
+                setActiveTab(tab)
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-gold-900/40 text-gold'
+                  : 'text-gold-500 hover:text-gold'
+              }`}
             >
               {{ write: '✍ Write', preview: '📖 Preview' }[tab]}
             </button>
           ))}
         </div>
+
+        {/* Cover & Export button */}
         <Link
           href={`/cover/${bookId}`}
           onClick={() => forceSave()}
-          className="bg-gold text-ink-900 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-gold-300 ml-2 flex-shrink-0"
+          className="bg-gold text-ink-900 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gold-300 ml-1 flex-shrink-0 transition-colors"
         >
           🎨 Cover & Export
         </Link>
       </nav>
 
-      {/* Main Content */}
+      {/* ── Main area ────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Write Tab */}
+
+        {/* ── WRITE TAB ────────────────────────────────── */}
         {activeTab === 'write' && (
           <>
-            {/* Left sidebar: chapters + author */}
-            <div className="flex flex-col flex-shrink-0">
-              <ChapterList
-                bookId={bookId}
-                chapters={chapters}
-                activeChapterId={activeChapter?.id ?? null}
-                onSelect={handleChapterSelect}
-                onChaptersChange={setChapters}
-              />
-              <div className="border-t border-gold-200 p-3 bg-cream w-60">
-                <p className="text-[10px] uppercase tracking-widest text-ink-300 mb-1">Author Name</p>
+            {/* Left sidebar */}
+            <div className="flex flex-col flex-shrink-0 border-r border-gold-200"
+              style={{ width: '220px' }}>
+
+              {/* Chapter list — scrollable, takes all remaining height */}
+              <div className="flex-1 overflow-hidden">
+                <ChapterList
+                  bookId={bookId}
+                  chapters={chapters}
+                  activeChapterId={activeChapter?.id ?? null}
+                  onSelect={handleChapterSelect}
+                  onChaptersChange={setChapters}
+                />
+              </div>
+
+              {/* Total word count strip */}
+              <div className="px-3 py-2 border-t border-gold-100 bg-cream flex-shrink-0">
+                <p className="text-[10px] uppercase tracking-widest text-ink-300">
+                  {totalWords.toLocaleString()} total words
+                </p>
+              </div>
+
+              {/* ── Author name — always visible ─────────── */}
+              <div className="px-3 py-3 border-t border-gold-200 bg-cream flex-shrink-0">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-ink-400 mb-1.5">
+                  Author Name
+                </p>
                 <input
                   value={book.author_name ?? ''}
-                  onChange={e => saveBookMeta('author_name', e.target.value)}
-                  className="w-full bg-paper border border-gold-200 rounded-md px-2 py-1 text-xs text-ink-700 outline-none focus:border-gold"
-                  placeholder="Your name"
+                  onChange={e =>
+                    saveBookField('author_name', e.target.value)
+                  }
+                  className="w-full bg-paper border border-gold-200 rounded-md px-2.5 py-1.5 text-xs text-ink-800 outline-none focus:border-gold transition-colors placeholder:text-ink-300"
+                  placeholder="Your name here"
                 />
               </div>
             </div>
 
             {/* Editor area */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-8 pt-6 pb-1 border-b border-gold-50">
+
+              {/* Chapter title input */}
+              <div className="px-8 pt-6 pb-2 border-b border-gold-50 bg-paper flex-shrink-0">
                 <input
                   value={chapterTitle}
                   onChange={e => {
                     setChapterTitle(e.target.value)
-                    setChapters(prev => prev.map(c =>
-                      c.id === activeChapter?.id ? { ...c, title: e.target.value } : c
-                    ))
+                    setChapters(prev =>
+                      prev.map(c =>
+                        c.id === activeChapter?.id
+                          ? { ...c, title: e.target.value }
+                          : c
+                      )
+                    )
                   }}
-                  className="font-serif text-3xl text-ink-900 bg-transparent outline-none w-full placeholder:text-gold-200"
+                  className="font-serif text-3xl text-ink-900 bg-transparent outline-none w-full placeholder:text-gold-200 transition-colors"
                   placeholder="Chapter Title…"
                 />
               </div>
+
+              {/* Rich-text editor */}
               <div className="flex-1 overflow-hidden">
                 <Editor
                   content={editorContent}
@@ -261,6 +317,8 @@ export default function EditorPage() {
                   placeholder="Your story begins here…"
                 />
               </div>
+
+              {/* AI toolbar (also shows save status) */}
               <AIToolbar
                 chapterText={stripHtml(editorContent)}
                 onApplyContent={handleApplyContent}
@@ -270,7 +328,7 @@ export default function EditorPage() {
           </>
         )}
 
-        {/* Preview Tab - FIXED: BookPreview actually render ho raha hai */}
+        {/* ── PREVIEW TAB ──────────────────────────────── */}
         {activeTab === 'preview' && (
           <div className="flex-1 bg-[#e8e0d0] overflow-y-auto">
             <BookPreview book={book} chapters={chapters} />
